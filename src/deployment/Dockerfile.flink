@@ -1,0 +1,19 @@
+# Use Apache Flink Python base image
+FROM apache/flink:1.17.1-python3.9
+
+# Set working directory
+WORKDIR /opt/flink/usrlib
+
+# Copy requirements and install Python dependencies
+COPY src/deployment/flink_requirements.txt .
+RUN pip install --no-cache-dir -r flink_requirements.txt
+
+# Copy the Flink job
+COPY src/deployment/flink_job.py .
+
+# Set environment variables
+ENV PYTHONPATH="/opt/flink/usrlib"
+ENV FLINK_HOME="/opt/flink"
+
+# Default command (can be overridden)
+CMD ["python", "flink_job.py"] 
