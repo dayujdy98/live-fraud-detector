@@ -11,6 +11,9 @@ RUN pip install --no-cache-dir -r deployment_requirements.txt
 # Copy the entire src directory
 COPY src/ ./src/
 
+# Create data directory for logging
+RUN mkdir -p /app/data && chmod 755 /app/data
+
 # Set environment variables
 ENV PYTHONPATH="/app/src"
 ENV MLFLOW_TRACKING_URI=""
