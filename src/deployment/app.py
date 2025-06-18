@@ -8,6 +8,10 @@ import mlflow
 import mlflow.xgboost
 import mlflow.sklearn
 import uvicorn
+from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_client import Counter
+from datetime import datetime
+import uuid
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -19,6 +23,12 @@ app = FastAPI(
     description="API for predicting transaction fraud probability",
     version="1.0.0"
 )
+
+# Instrument the app with default metrics (latency, requests, etc.)
+Instrumentator().instrument(app).expose(app)
+
+# Custom metric to count fraud predictions
+FRAUD_PREDICTIONS_COUNTER = Counter("fraud_predictions_total", "Total number of transactions predicted as fraud")
 
 # Global dictionary to store model artifacts
 model_artifacts = {}
@@ -110,6 +120,11 @@ async def predict(request: TransactionRequest):
         if "model" not in model_artifacts:
             raise HTTPException(status_code=503, detail="Model not loaded")
         
+        # Generate prediction metadata
+        prediction_id = str(uuid.uuid4())
+        prediction_timestamp = datetime.now().isoformat()
+        logger.info(f"Prediction ID: {prediction_id}, Timestamp: {prediction_timestamp}")
+        
         # Convert transactions to DataFrame
         transactions_data = [transaction.dict() for transaction in request.transactions]
         df = pd.DataFrame(transactions_data)
@@ -130,7 +145,32 @@ async def predict(request: TransactionRequest):
         model = model_artifacts["model"]
         probabilities = model.predict_proba(df_processed)[:, 1].tolist()
         
+        # Increment fraud predictions counter for transactions above threshold
+        fraud_count = sum(1 for prob in probabilities if prob > 0.5)
+        if fraud_count > 0:
+            FRAUD_PREDICTIONS_COUNTER.inc(fraud_count)
+        
         logger.info(f"Processed {len(request.transactions)} transactions")
+        
+        # Log predictions to CSV file
+        try:
+            # Create a DataFrame with original features and add predictions
+            log_df = pd.DataFrame(transactions_data)
+            log_df['prediction'] = probabilities
+            log_df['prediction_id'] = prediction_id
+            log_df['timestamp'] = prediction_timestamp
+            log_df['fraud_detected'] = [prob > 0.5 for prob in probabilities]
+            
+            # Append to a CSV file. Use header=False if the file already exists.
+            log_file = "/app/data/inference_log.csv"
+            os.makedirs(os.path.dirname(log_file), exist_ok=True)
+            log_df.to_csv(log_file, mode='a', header=not os.path.exists(log_file), index=False)
+            
+            logger.info(f"Logged {len(log_df)} predictions to {log_file}")
+            
+        except Exception as e:
+            logger.error(f"Error logging inference data: {e}")
+            # Don't fail the prediction request if logging fails
         
         return PredictionResponse(predictions=probabilities)
         
