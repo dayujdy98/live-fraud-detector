@@ -16,4 +16,4 @@ ENV PYTHONPATH="/opt/flink/usrlib"
 ENV FLINK_HOME="/opt/flink"
 
 # Default command (can be overridden)
-CMD ["python", "flink_job.py"] 
+CMD ["python", "flink_job.py"]
