@@ -101,4 +101,4 @@ flink run \
 rm -f "$PROPERTIES_FILE"
 
 print_status "Flink job submitted successfully!"
-print_status "You can monitor the job at: http://${FLINK_JOBMANAGER_HOST}:${FLINK_JOBMANAGER_PORT}" 
+print_status "Monitor the job at: http://${FLINK_JOBMANAGER_HOST}:${FLINK_JOBMANAGER_PORT}"
